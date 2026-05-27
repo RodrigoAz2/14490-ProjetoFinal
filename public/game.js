@@ -1,44 +1,64 @@
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const leftBtn = document.getElementById('leftBtn');
-const rightBtn = document.getElementById('rightBtn');
-const restartBtn = document.getElementById('restartBtn');
-const info = document.getElementById('info');
+// Basic game elements and controls
+const canvas = document.getElementById('gameCanvas'); // game drawing area
+const ctx = canvas.getContext('2d'); // 2D rendering context
+const leftBtn = document.getElementById('leftBtn'); // UI left button
+const rightBtn = document.getElementById('rightBtn'); // UI right button
+const restartBtn = document.getElementById('restartBtn'); // restart button
+const info = document.getElementById('info'); // info/status text
 
-const road = { x: 170, width: 300, height: canvas.height };
-const laneCount = 3;
-const laneWidth = road.width / laneCount;
-const laneCenters = [road.x + laneWidth / 2, road.x + laneWidth * 1.5, road.x + laneWidth * 2.5];
+/*
+  game.js
+  - Simple lane-based dodging game.
+  - Player moves between 3 lanes; enemies spawn at the top and move down.
+  - We expose `window.moveLeft` and `window.moveRight` so external code (blink.js)
+    can control the player via blinks.
+*/
+
+// Road and lane configuration
+const road = { x: 170, width: 300, height: canvas.height }; // road rectangle
+const laneCount = 3; // number of lanes
+const laneWidth = road.width / laneCount; // width per lane
+const laneCenters = [road.x + laneWidth / 2, road.x + laneWidth * 1.5, road.x + laneWidth * 2.5]; // x positions for lanes
 
 const player = { lane: 1, x: laneCenters[1], y: canvas.height - 120, w: 50, h: 90, color: '#28b' };
-let enemies = [];
-let lastSpawn = 0;
-let score = 0;
-let speed = 2.5;
+// Game state variables
+let enemies = []; // list of enemy cars
+let lastSpawn = 0; // ms accumulator since last spawn
+let score = 0; // player score
+const baseSpawnInterval = 2200; // ms between spawns (larger -> easier)
+let spawnInterval = baseSpawnInterval; // current spawn interval (can change with difficulty)
+const baseSpeed = 1.8; // initial enemy speed
+let speed = baseSpeed; // current global enemy speed
+const maxSpeed = 4.5; // cap for speed increases
+let nextSpeedIncreaseAt = 200; // score milestone for next speed bump
 let gameOver = false;
 let lastTime = performance.now();
 
 function resetGame() {
-  enemies = [];
-  lastSpawn = 0;
-  score = 0;
-  speed = 2.5;
+  enemies = []; // clear enemies
+  lastSpawn = 0; // reset spawn timer
+  score = 0; // reset score
+  // Reset difficulty and state
+  spawnInterval = baseSpawnInterval;
+  speed = baseSpeed;
+  nextSpeedIncreaseAt = 200;
   gameOver = false;
-  player.lane = 1;
-  player.x = laneCenters[player.lane];
+  player.lane = 1; // center lane
+  player.x = laneCenters[player.lane]; // update player x
   info.textContent = 'Use as setas ←/→ ou os botões para desviar dos carros vermelhos.';
 }
 
 function spawnEnemy() {
+  // Spawn an enemy in a random lane slightly above the canvas
   const lane = Math.floor(Math.random() * laneCount);
   const enemy = {
     lane,
     x: laneCenters[lane],
-    y: -120,
+    y: -120, // start above viewport
     w: 50,
     h: 90,
     color: '#d33',
-    speed: speed + Math.random() * 1.2
+    speed: speed + Math.random() * 1.2 // add small random variation
   };
   enemies.push(enemy);
 }
@@ -96,8 +116,9 @@ function drawEnemies() {
 function update(dt) {
   if (gameOver) return;
 
+  // spawn logic based on accumulated ms
   lastSpawn += dt;
-  if (lastSpawn > 1200) {
+  if (lastSpawn > spawnInterval) {
     lastSpawn = 0;
     spawnEnemy();
   }
@@ -106,12 +127,13 @@ function update(dt) {
     enemy.y += enemy.speed * dt / 16;
   });
 
+  // remove enemies that passed the bottom and award points
   enemies = enemies.filter((enemy) => {
     if (enemy.y - enemy.h / 2 > canvas.height) {
       score += 10;
-      return false;
+      return false; // drop from array
     }
-    return true;
+    return true; // keep otherwise
   });
 
   enemies.forEach((enemy) => {
@@ -124,8 +146,13 @@ function update(dt) {
     }
   });
 
-  if (score > 200 && score % 100 === 0) {
-    speed = 2.5 + score / 100;
+  // gradual speed increases at score milestones
+  // difficulty scaling: increase speed and slightly decrease spawn interval
+  if (score >= nextSpeedIncreaseAt) {
+    speed = Math.min(maxSpeed, speed + 0.3);
+    nextSpeedIncreaseAt += 200; // next milestone
+    // slightly tighten spawn interval but keep a lower bound
+    spawnInterval = Math.max(900, spawnInterval - 120);
   }
 }
 
@@ -146,15 +173,18 @@ function drawHUD() {
 
 function cycleLane(direction) {
   if (gameOver) return;
+  // clamp lane index and update player position
   player.lane = Math.max(0, Math.min(laneCount - 1, player.lane + direction));
   player.x = laneCenters[player.lane];
 }
 
 function moveLeft() {
+  // Move player one lane to the left
   cycleLane(-1);
 }
 
 function moveRight() {
+  // Move player one lane to the right
   cycleLane(1);
 }
 

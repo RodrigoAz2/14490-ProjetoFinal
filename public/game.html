@@ -25,10 +25,20 @@
     <button id="rightBtn">Direita</button>
     <button id="restartBtn">Reiniciar</button>
   </div>
+  <div id="simControls" style="margin-top:8px">
+    <button id="simLeftBtn">Simular pestanejo esq.</button>
+    <button id="simRightBtn">Simular pestanejo dir.</button>
+  </div>
   <div id="info">Use pestanejos ou as setas ←/→ para controlar o carro.</div>
   <div id="blinkStatus">A iniciar deteção...</div>
   <video id="video" autoplay playsinline width="640" height="480" style="display:none"></video>
   <script src="game.js"></script>
   <script src="blink.js"></script>
+  <script>
+    const simLeft = document.getElementById('simLeftBtn');
+    const simRight = document.getElementById('simRightBtn');
+    if (simLeft) simLeft.addEventListener('click', () => { if (window.simulateLeftBlink) window.simulateLeftBlink(); });
+    if (simRight) simRight.addEventListener('click', () => { if (window.simulateRightBlink) window.simulateRightBlink(); });
+  </script>
 </body>
 </html>

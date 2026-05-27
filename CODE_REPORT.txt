@@ -1,0 +1,103 @@
+Relatório do Código — teste-facial-3p2026
+
+Objetivo do projeto
+- Jogo de desviar carros controlado por pestanejos (blinks).
+- Detecta piscadelas do olho esquerdo/direito via MediaPipe FaceMesh no browser
+  e converte em ações `moveLeft()` / `moveRight()` na lógica do jogo.
+
+Como correr o projeto
+1. No terminal: `node server.js`
+2. Abrir no browser: http://localhost:3000/game.html
+3. Permitir acesso à câmara para usar detecção por pestanejos.
+4. Há botões de simulação em `game.html` para testar `Simular pestanejo esq.` e `dir.`
+
+Mapa de ficheiros importantes
+- server.js
+  - Servidor estático Node simples que serve a pasta `public/`.
+- public/index.html, public/blink.html
+  - Páginas de diagnóstico/entrada (padrão). Não são essenciais ao jogo.
+- public/game.html
+  - Interface do jogo (canvas, botões de controlo, informação).
+- public/game.js
+  - Lógica do jogo: renderização, ciclo principal, spawn de inimigos,
+    controlo do jogador e colisões.
+- public/blink.js
+  - Código de deteção de olho com MediaPipe FaceMesh; faz leitura
+    de landmarks, calcula razão de abertura do olho e deteta piscadelas.
+
+Explicação detalhada — `public/blink.js`
+1) Propósito
+- Ler landmarks do FaceMesh e transformar numa "eye openness ratio" por olho.
+- Filtrar ruído, calibrar o utilizador e disparar ações quando há um blink.
+
+2) Principais componentes
+- `computeEyeRatio(landmarks, idx)`
+  - Calcula vertical/horizontal usando 6 pontos do olho (do FaceMesh).
+  - Resultado menor → olho mais fechado.
+
+- Sinal e suavização
+  - `smoothedLeftEye` / `smoothedRightEye` guardam uma EMA (alpha = `SMOOTHING`).
+  - Suaviza flutuações entre frames para evitar falsos positivos.
+
+- Calibração inicial
+  - `INITIAL_CALIB_FRAMES` (30 frames) coleta médias iniciais (`openLeftAvg` / `openRightAvg`) enquanto o utilizador olha com os olhos abertos.
+  - Mostra `Calibrando...` no UI até a calibração terminar.
+
+- Adaptação contínua
+  - Depois da calibração, quando o valor suavizado estiver acima de `THRESH`,
+    atualiza-se o `open*Avg` com taxa `OPEN_ADAPT_ALPHA` (mais responsiva).
+  - Isto permite adaptar-se a mudanças de iluminação ou distância da câmara.
+
+- Thresholds dinâmicos
+  - `leftDynamicThresh = max(0.12, openLeftAvg * CLOSED_RATIO)` (similar para o direito).
+  - Usar a média de olho aberto torna a deteção robusta a diferenças fisiológicas.
+
+- Debounce e confirmação por frames
+  - `MIN_CLOSED_FRAMES` (atualmente 2): exige 2 frames consecutivos abaixo do limiar
+    para considerar fechado (reduz falsos positivos mas mantém responsividade).
+  - `MIN_INTERVAL` (450 ms): evita múltiplos triggers muito seguidos.
+
+- Ações
+  - Ao detetar blink esquerdo chama `window.moveLeft()`; direito chama `window.moveRight()`.
+  - Existem funções de simulação `simulateLeftBlink()` / `simulateRightBlink()` para testes sem câmara.
+
+- Logs e UI
+  - `console.log` em cada frame dá uma linha compacta: valores suavizados, baseline,
+    thresholds e contadores de frames fechados (úteis para tuning).
+  - `blinkStatus` mostra estados rápidos (calibrando, eye values, pestanejo detectado).
+
+Parâmetros que podes ajustar rapidamente
+- `INITIAL_CALIB_FRAMES`: reduzir para 15 para calibrar mais rápido; aumentar se o movimento inicial for ruidoso.
+- `SMOOTHING`: aumentar para 0.3–0.4 para mais estabilidade; reduzir para 0.1 para mais sensibilidade.
+- `OPEN_ADAPT_ALPHA`: mais alto = adaptação mais rápida à iluminação.
+- `CLOSED_RATIO` (0.65): reduzir para detectar fecho mais facilmente (ex.: 0.6) ou aumentar para requerer mais fecho.
+- `MIN_CLOSED_FRAMES`: 1 = mais sensível (mais falsos positivos), 3 = mais robusto, menos responsivo.
+- `MIN_INTERVAL`: maior intervalo evita gatilhos repetidos.
+
+Explicação detalhada — `public/game.js`
+- `spawnInterval` e `baseSpawnInterval` controlam a frequência de aparecimento dos inimigos.
+  - Foi aumentado para 2200ms tornando o jogo mais fácil.
+- `baseSpeed` reduzido para 1.8 para desacelerar início do jogo.
+- A velocidade aumenta gradualmente em marcos de pontuação (`nextSpeedIncreaseAt`).
+- `moveLeft()` / `moveRight()` movem o jogador entre 3 pistas; essas funções estão expostas
+  para que `blink.js` possa chamá-las diretamente.
+
+Como testar e afinar
+1. Reinicia o servidor e abre `game.html`.
+2. Abre DevTools → Console para ver as linhas de debug.
+3. Espera pela mensagem `Calibração concluída` e depois tenta piscar apenas o olho direito.
+4. Copia 6–10 linhas do console (antes e durante o blink) e envia-me para eu afinar `CLOSED_RATIO`, `MIN_CLOSED_FRAMES` ou `SMOOTHING`.
+5. Usa os botões de simulação para confirmar que `moveLeft`/`moveRight` estão ligados corretamente.
+
+Melhorias sugeridas
+- Detectar piscadelas curtas vs longas e ignorar piscadelas de ambos os olhos (piscar normal).
+- Fornecer UI de calibração manual (botão "Calibrar agora") e slider para `CLOSED_RATIO` em runtime.
+- Persistir a calibração por utilizador (localStorage) para evitar recalibrar sempre.
+
+Notas finais
+- O algoritmo atual prioriza robustez e adaptabilidade: suavização + calibração + threshold dinâmico + contagem de frames.
+- Se precisares, faço uma versão com sliders UI para ajustar `SMOOTHING`, `CLOSED_RATIO`, `MIN_CLOSED_FRAMES` em tempo real.
+
+Ficheiro do relatório: CODE_REPORT.txt
+
+--- fim do relatório ---
